@@ -4,38 +4,82 @@ const cellSize = canvas.width / 19; // Adjusted to fill the canvas width
 const gridSize = 19;
 let board = Array(gridSize).fill().map(() => Array(gridSize).fill(null));
 let currentPlayer = 'black';
+let myRole = null;
 
 const socket = io.connect('http://localhost:3000');
 
-canvas.addEventListener('click', function(e) {
+canvas.addEventListener('mousedown', function(e) {
+    if (myRole !== currentPlayer) return; // Ensure the player can only move on their turn
+
     let x = Math.round((e.offsetX - cellSize / 2) / cellSize);
     let y = Math.round((e.offsetY - cellSize / 2) / cellSize);
+
     if (x >= 0 && x < gridSize && y >= 0 && y < gridSize && !board[y][x]) {
-        if (!board[y][x]) {
-            board[y][x] = currentPlayer;
-            drawBoard();
+        board[y][x] = currentPlayer;
+        drawBoard();
     
-            // When making a move:
-            socket.emit('move', { x: x, y: y, player: currentPlayer });
-    
-            if (checkWin(x, y)) {
-                setTimeout(() => {  // Delay the alert
-                    alert(currentPlayer + ' wins!');
-                    resetGame();
-                }, 10); 
-            } else {
-                currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
-            }  
-        }
+        socket.emit('move', { x: x, y: y, player: currentPlayer });
+
+        currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
+        updatePlayerDisplay();  
     }
 });
 
+const resetButton = document.getElementById('resetButton');
+resetButton.addEventListener('click', resetGame);
+
+let playerId = localStorage.getItem('playerId');
+if (playerId) {
+    socket.emit('checkRole', playerId);
+}
+
+socket.on('setRole', (role) => {
+    // Set the role for this client and store their ID if not already stored
+    currentPlayer = role;
+    if (!playerId) {
+        playerId = socket.id;
+        localStorage.setItem('playerId', playerId);
+    }
+    updatePlayerDisplay();
+});
 
 // When receiving a move from the server:
 socket.on('move', function(data) {
     board[data.y][data.x] = data.player;
     drawBoard();
+    currentPlayer = data.player === 'black' ? 'white' : 'black';  // Swap the currentPlayer
+    updatePlayerDisplay();
 });
+
+socket.on('player_status', function(data) {
+    if (data.status === 'watch') {
+        // For the sake of simplicity, we'll just display an alert
+        alert("You're watching the game. Wait for your turn to play.");
+    } else if (data.status === 'play') {
+        currentPlayer = data.color;
+        updatePlayerDisplay();
+    }
+});
+
+socket.on('update_turn', function(newPlayer) {
+    currentPlayer = newPlayer;
+    updatePlayerDisplay();
+});
+
+socket.on('role', function(role) {
+    myRole = role;
+    const roleElement = document.getElementById('roleStone');
+
+    // Update the role display based on the role assigned by the server
+    if (role === 'observer') {
+        roleElement.textContent = "Observer";
+        roleElement.style.backgroundColor = 'transparent';
+    } else {
+        roleElement.textContent = "";
+        roleElement.style.backgroundColor = role;
+    }
+});
+
 
 function drawBoard() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -69,46 +113,25 @@ function drawBoard() {
     }
 }
 
-function checkDirection(dx, dy, x, y) {
-    let count = 0;
-    let player = board[y][x];
-    
-    for (let i = 0; i < 5; i++) {
-        let nx = x + dx * i;
-        let ny = y + dy * i;
-
-        if (nx < 0 || ny < 0 || nx >= gridSize || ny >= gridSize) break;  // Adjusted to gridSize
-        if (board[ny][nx] === player) count++;
-        else break;
-    }
-
-    for (let i = 1; i < 5; i++) {
-        let nx = x - dx * i;
-        let ny = y - dy * i;
-
-        if (nx < 0 || ny < 0 || nx >= gridSize || ny >= gridSize) break;  // Adjusted to gridSize
-        if (board[ny][nx] === player) count++;
-        else break;
-    }
-
-    return count >= 5;
-}
-
-function checkWin(x, y) {
-    // Check horizontally, vertically, and both diagonals
-    return checkDirection(1, 0, x, y) || // Horizontal
-           checkDirection(0, 1, x, y) || // Vertical
-           checkDirection(1, 1, x, y) || // Diagonal from top-left to bottom-right
-           checkDirection(1, -1, x, y);  // Diagonal from bottom-left to top-right
+function updatePlayerDisplay() {
+    const currentStoneEl = document.getElementById('currentStone');
+    currentStoneEl.style.backgroundColor = currentPlayer;
 }
 
 function resetGame() {
     board = Array(19).fill().map(() => Array(19).fill(null));
     currentPlayer = 'black';
     drawBoard();
+    updatePlayerDisplay(); 
+}
+
+function resetGame() {
+    board = Array(19).fill().map(() => Array(19).fill(null));
+    drawBoard();
 }
 
 drawBoard();
+updatePlayerDisplay();
 
 
 

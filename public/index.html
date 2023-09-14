@@ -7,7 +7,22 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <div id="gameContainer">
         <canvas id="board" width="760" height="760"></canvas>
+        <div id="gameControls">
+            <div id="currentPlayerDisplay">
+                <div id="currentStone"></div>
+                's Turn
+            </div>
+
+            <div id="currentPlayerDisplay">
+                Role  :    
+                <div id="roleStone"></div>
+            </div>
+
+            <button id="resetButton">Reset Game</button>
+        </div>
+    </div>
     <script src="/socket.io/socket.io.js"></script>
     <script src="client.js"></script>
 </body>

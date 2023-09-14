@@ -13,3 +13,55 @@ canvas {
     border: 1px solid black;
     box-shadow: 3px 3px 10px rgba(0,0,0,0.3);
 }
+
+#gameContainer {
+    display: flex;
+    align-items: start;
+}
+
+#board {
+    border: 1px solid #000;  /* Optional: Add border for visual clarity */
+}
+
+#gameControls {
+    margin-left: 20px; /* spacing between board and controls */
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+}
+
+#currentPlayerDisplay {
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+#currentStone {
+    width: 24px; 
+    height: 24px; 
+    border-radius: 50%; 
+    margin-right: 8px;
+}
+
+#roleStone {
+    width: 24px; 
+    height: 24px; 
+    border-radius: 50%; 
+    margin-right: 8px;
+}
+
+#resetButton {
+    background-color: #4CAF50; /* Green background */
+    color: white; /* White text */
+    padding: 12px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: 0.3s; /* smooth transition for hover effect */
+}
+
+#resetButton:hover {
+    background-color: #45a049; /* Darker green on hover */
+}
+
