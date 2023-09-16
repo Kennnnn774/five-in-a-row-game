@@ -7,6 +7,7 @@ const server = http.createServer(app);
 const io = socketIo(server);
 
 let board = Array(19).fill().map(() => Array(19).fill(null));
+const gridSize = 19;
 let currentPlayer = 'black'; // Start with the black player
 let playerRoles = new Map(); 
 app.use(express.static('public')); // Assuming your client-side files are in a 'public' directory
@@ -23,7 +24,8 @@ io.on('connection', (socket) => {
             callback({
                 socketId: socket.id, role: role
             });
-            // socket.emit('setRole', { socketId: id, role: role});
+        }else {
+            callback({ error: 'Player not found' });
         }
     });
 
@@ -49,11 +51,6 @@ io.on('connection', (socket) => {
     io.emit('board', board);
     io.emit('currentPlayer', currentPlayer);
     
-    // console.log(board);
-    // socket.on('getBoard', (callback) => {
-    //     console.log(board);
-    //     callback({board});
-    // }); // Send the current board state to the newly connected player
 
     socket.on('resetGame', () => {
         resetGame();
@@ -66,7 +63,9 @@ io.on('connection', (socket) => {
         let playerRole = data.player;
         console.log('playerRole', playerRole);
         console.log('currentPlayer', currentPlayer);
-        if (playerRole && playerRole === currentPlayer && !board[data.y][data.x]) {
+        if (playerRole && playerRole === currentPlayer && !board[data.y][data.x] && 
+            data.x >= 0 && data.x < gridSize && data.y >= 0 && data.y < gridSize && 
+            playerRoles.size >=2) {
             board[data.y][data.x] = currentPlayer;
             currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
             io.emit('move', data); // Send the move to all connected clients
@@ -81,9 +80,6 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         console.log('A user disconnected:', socket.id);
-        // If a player disconnects, you might want to handle reassignment or end the game
-        // io.emit('gameReset'); 
-        // resetGame();
     });
 });
 

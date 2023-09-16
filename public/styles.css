@@ -65,3 +65,22 @@ canvas {
     background-color: #45a049; /* Darker green on hover */
 }
 
+#playOnline{
+    background-color: #664caf; /* Green background */
+    color: white; /* White text */
+    padding: 12px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: 0.3s; /* smooth transition for hover effect */
+}
+#playLocally{
+    background-color: #af604c; /* Green background */
+    color: white; /* White text */
+    padding: 12px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: 0.3s; /* smooth transition for hover effect */
+}
+

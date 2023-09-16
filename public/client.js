@@ -1,4 +1,3 @@
-
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const cellSize = canvas.width / 19; // Adjusted to fill the canvas width
@@ -7,67 +6,107 @@ let board = Array(gridSize).fill().map(() => Array(gridSize).fill(null));
 let currentPlayer = 'black';
 let myRole = null;
 let playerId = null;
+let tabId = null;
+let onlineMode = true; // By default, the game is in online mode
 
 const socket = io.connect('http://localhost:3000'); // Replace with your server URL
 
-playerId = sessionStorage.getItem('playerId');
-console.log('session saved', playerId);
-if (playerId) {
-    console.log('client exist', playerId);
-    socket.emit('getOldPlayer', playerId, (response) => {
-        playerId = response.socketId;
-        myRole = response.role;
-        updateRoleDisplay(myRole);        
-    }    );
-} else {
-    socket.emit('createNewPlayer', (response) => {
-        // Callback function to handle the new player ID
-        sessionStorage.setItem('playerId', response.socketId);
-        playerId = sessionStorage.getItem('playerId');
-        myRole = response.role;
-        updateRoleDisplay(myRole);
-        console.log('session saved check', playerId);
-    });    
+const playOnlineButton = document.getElementById('playOnline');
+const playLocallyButton = document.getElementById('playLocally');
+const gameModeHeader = document.getElementById('gameModeHeader');
+
+playOnlineButton.addEventListener('click', function() {
+    onlineMode = true;
+    resetGame();
+    connectToServer();
+    updateGameModeHeader();
+});
+
+playLocallyButton.addEventListener('click', function() {
+    onlineMode = false;
+    resetGame();
+    disconnectFromServer(); // This function will be defined below
+    updateGameModeHeader();
+});
+
+function updateGameModeHeader() {
+    if (onlineMode === true) {
+        gameModeHeader.innerText = "Mode: Online";
+    } else if (onlineMode === false) {
+        gameModeHeader.innerText = "Mode: Local";
+    } 
 }
 
-// if( playerId || myRole === 'observer'){
-//     // need get the saved board information
-//     socket.emit('getBoard', (response) => {
-//         board = response.board;
-//         drawBoard();
-//         console.log('here', board);
-//     })
-// };
+function disconnectFromServer() {
+    if (socket) {
+        socket.disconnect(); // This disconnects the socket from the server
+        resetGame();
+    } 
+}
 
-socket.on('board', (data) =>{
-    board = data;
-    drawBoard();
-});
-socket.on('currentPlayer', (data) =>{
-    currentPlayer = data;
-    updatePlayerDisplay();
-});
-// When receiving a move from the server:
-socket.on('move', function(data) {
-    board[data.y][data.x] = data.player;
-    drawBoard();
-    currentPlayer = data.player === 'black' ? 'white' : 'black';  // Swap the currentPlayer
-    updatePlayerDisplay();
-});
+function connectToServer() {
+    if (!onlineMode) return;
 
-socket.on('gameWon', (role) => {
-    alert(`${role} wins the game!`);
-    resetGame(); // Reset the game
+    let tabId = sessionStorage.getItem('tabId');
+    if (!tabId) {
+        tabId = new Date().getTime() + '_' + Math.random(); // combining timestamp and random number for uniqueness
+        sessionStorage.setItem('tabId', tabId);
+        console.log(sessionStorage.getItem('tabId'));
+    }
 
-});
+    playerId = getTabCookie('playerId');
+    console.log('session saved', playerId);
+    console.log("88888", sessionStorage.getItem('tabId'));
+    if (playerId) {
+        console.log('client exist', playerId);
+        socket.emit('getOldPlayer', playerId, (response) => {
+            setTabCookie('playerId', response.socketId, 7);
+            playerId = response.socketId;
+            myRole = response.role;
+            updateRoleDisplay(myRole);        
+        }    );
+    } else {
+        socket.emit('createNewPlayer', (response) => {
+            // Callback function to handle the new player ID
+            setTabCookie('playerId', response.socketId, 7);
+            playerId = getTabCookie('playerId');
+            myRole = response.role;
+            updateRoleDisplay(myRole);
+            console.log('session saved check', playerId);
+        });    
+    }
+    socket.on('board', (data) =>{
+        board = data;
+        drawBoard();
+    });
+    socket.on('currentPlayer', (data) =>{
+        currentPlayer = data;
+        updatePlayerDisplay();
+    });
+    // When receiving a move from the server:
+    socket.on('move', function(data) {
+        board[data.y][data.x] = data.player;
+        drawBoard();
+        currentPlayer = data.player === 'black' ? 'white' : 'black';  // Swap the currentPlayer
+        updatePlayerDisplay();
+    });
+    
+    socket.on('gameWon', (role) => {
+        alert(`${role} wins the game!`);
+        resetGame(); // Reset the game
+    
+    });
+    
+    socket.on('gameReset', () => {
+        alert(`game is reset!`);
+        resetGame(); // Reset the game
+    });
+}
 
-socket.on('gameReset', () => {
-    alert(`game is reset!`);
-    resetGame(); // Reset the game
-});
+connectToServer();
 
 canvas.addEventListener('mousedown', function (e) {
-    if (myRole && myRole !== currentPlayer) return;
+    if (onlineMode && myRole && myRole !== currentPlayer) return;
 
     let x = Math.round((e.offsetX - cellSize / 2) / cellSize);
     let y = Math.round((e.offsetY - cellSize / 2) / cellSize);
@@ -144,6 +183,50 @@ function resetGame() {
     currentPlayer = 'black';
     drawBoard();
     updatePlayerDisplay();
+}
+
+function setCookie(name, value, days) {
+    let expires = "";
+    if (days) {
+        const date = new Date();
+        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+        expires = "; expires=" + date.toUTCString();
+    }
+    document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+}
+
+function getCookie(name) {
+    const nameEQ = name + "=";
+    const ca = document.cookie.split(';');
+    for(let i=0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) == ' ') c = c.substring(1, c.length);
+        if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
+    }
+    return null;
+}
+
+function setTabCookie(name, value, days) {
+    const fullCookieName = name + '_' + tabId;
+    setCookie(fullCookieName, value, days);
+}
+
+function getTabCookie(name) {
+    const fullCookieName = name + '_' + tabId;
+    return getCookie(fullCookieName);
+}
+
+function deleteTabCookie(name) {
+    const fullCookieName = name + '_' + tabId;
+    deleteCookie(fullCookieName);
+}
+
+function deleteCookie(name) { 
+    document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:01 GMT; path=/'; 
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 drawBoard();
