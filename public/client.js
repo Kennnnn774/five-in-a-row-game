@@ -9,11 +9,11 @@ let playerId = null;
 let tabId = null;
 let onlineMode = true; // By default, the game is in online mode
 
-const socket = io.connect('http://localhost:3000'); // Replace with your server URL
-
 const playOnlineButton = document.getElementById('playOnline');
 const playLocallyButton = document.getElementById('playLocally');
 const gameModeHeader = document.getElementById('gameModeHeader');
+
+const socket = io.connect('http://localhost:3000'); // Replace with your server URL
 
 playOnlineButton.addEventListener('click', function() {
     onlineMode = true;
