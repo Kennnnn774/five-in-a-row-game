@@ -18,13 +18,14 @@ const socket = io.connect('http://localhost:3000'); // Replace with your server 
 playOnlineButton.addEventListener('click', function() {
     onlineMode = true;
     resetGame();
-    connectToServer();
+    socket.connect();
     updateGameModeHeader();
 });
 
 playLocallyButton.addEventListener('click', function() {
     onlineMode = false;
     resetGame();
+    socket.emit('resetGame');
     disconnectFromServer(); // This function will be defined below
     updateGameModeHeader();
 });
@@ -40,93 +41,88 @@ function updateGameModeHeader() {
 function disconnectFromServer() {
     if (socket) {
         socket.disconnect(); // This disconnects the socket from the server
-        resetGame();
     } 
 }
 
-function connectToServer() {
-    if (!onlineMode) return;
-
-    let tabId = sessionStorage.getItem('tabId');
-    if (!tabId) {
-        tabId = new Date().getTime() + '_' + Math.random(); // combining timestamp and random number for uniqueness
-        sessionStorage.setItem('tabId', tabId);
-        console.log(sessionStorage.getItem('tabId'));
-    }
-
-    playerId = getTabCookie('playerId');
-    console.log('session saved', playerId);
-    console.log("88888", sessionStorage.getItem('tabId'));
+playerId = sessionStorage.getItem('playerId');
+console.log('session saved', playerId);
+if(onlineMode){
     if (playerId) {
         console.log('client exist', playerId);
         socket.emit('getOldPlayer', playerId, (response) => {
-            setTabCookie('playerId', response.socketId, 7);
             playerId = response.socketId;
             myRole = response.role;
             updateRoleDisplay(myRole);        
-        }    );
+        });
     } else {
         socket.emit('createNewPlayer', (response) => {
             // Callback function to handle the new player ID
-            setTabCookie('playerId', response.socketId, 7);
-            playerId = getTabCookie('playerId');
+            sessionStorage.setItem('playerId', response.socketId);
+            playerId = sessionStorage.getItem('playerId');
             myRole = response.role;
             updateRoleDisplay(myRole);
             console.log('session saved check', playerId);
         });    
-    }
-    socket.on('board', (data) =>{
-        board = data;
-        drawBoard();
-    });
-    socket.on('currentPlayer', (data) =>{
-        currentPlayer = data;
-        updatePlayerDisplay();
-    });
-    // When receiving a move from the server:
-    socket.on('move', function(data) {
-        board[data.y][data.x] = data.player;
-        drawBoard();
-        currentPlayer = data.player === 'black' ? 'white' : 'black';  // Swap the currentPlayer
-        updatePlayerDisplay();
-    });
-    
-    socket.on('gameWon', (role) => {
-        alert(`${role} wins the game!`);
-        resetGame(); // Reset the game
-    
-    });
-    
-    socket.on('gameReset', () => {
-        alert(`game is reset!`);
-        resetGame(); // Reset the game
-    });
+    }   
 }
 
-connectToServer();
+socket.on('board', (data) =>{
+    board = data;
+    drawBoard();
+});
+socket.on('currentPlayer', (data) =>{
+    currentPlayer = data;
+    updatePlayerDisplay();
+});
+// When receiving a move from the server:
+socket.on('move', function(data) {
+    board[data.y][data.x] = data.player;
+    drawBoard();
+    currentPlayer = data.player === 'black' ? 'white' : 'black';  // Swap the currentPlayer
+    updatePlayerDisplay();
+});
+
+socket.on('gameWon', (role) => {
+    alert(`${role} wins the game!`);
+    resetGame(); // Reset the game
+
+});
+
+socket.on('gameReset', () => {
+    alert(`game is reset!`);
+    resetGame(); // Reset the game
+});
 
 canvas.addEventListener('mousedown', function (e) {
-    if (onlineMode && myRole && myRole !== currentPlayer) return;
-
     let x = Math.round((e.offsetX - cellSize / 2) / cellSize);
     let y = Math.round((e.offsetY - cellSize / 2) / cellSize);
 
     if (x >= 0 && x < gridSize && y >= 0 && y < gridSize && !board[y][x]) {
-        board[y][x] = currentPlayer;
-        socket.emit('move', { x: x, y: y, player: currentPlayer });
+        if (onlineMode){
+            if (myRole && myRole !== currentPlayer) return;
+            board[y][x] = currentPlayer;
+            socket.emit('move', { x: x, y: y, player: currentPlayer });
+        } else {
+            board[y][x] = currentPlayer;
+            if (localCheckWin(x, y, currentPlayer)){
+                alert(`${currentPlayer} wins the game!`);
+                resetGame();
+                return;
+            }
+        }
+
         drawBoard();
         currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
         updatePlayerDisplay();
     }
+
 });
 
 const resetButton = document.getElementById('resetButton');
 resetButton.addEventListener('click', function (e) {
     resetGame();
-    socket.emit('resetGame');
+    if (onlineMode) socket.emit('resetGame');
 });
-
-
 
 function drawBoard() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -195,39 +191,41 @@ function setCookie(name, value, days) {
     document.cookie = name + "=" + (value || "")  + expires + "; path=/";
 }
 
-function getCookie(name) {
-    const nameEQ = name + "=";
-    const ca = document.cookie.split(';');
-    for(let i=0; i < ca.length; i++) {
-        let c = ca[i];
-        while (c.charAt(0) == ' ') c = c.substring(1, c.length);
-        if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
-    }
-    return null;
-}
-
-function setTabCookie(name, value, days) {
-    const fullCookieName = name + '_' + tabId;
-    setCookie(fullCookieName, value, days);
-}
-
-function getTabCookie(name) {
-    const fullCookieName = name + '_' + tabId;
-    return getCookie(fullCookieName);
-}
-
-function deleteTabCookie(name) {
-    const fullCookieName = name + '_' + tabId;
-    deleteCookie(fullCookieName);
-}
-
-function deleteCookie(name) { 
-    document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:01 GMT; path=/'; 
-}
-
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 drawBoard();
 updatePlayerDisplay();
+
+
+function checkDirection(dx, dy, x, y, player) {
+    let count = 0;
+
+    for (let i = 0; i < 5; i++) {
+        let nx = x + dx * i;
+        let ny = y + dy * i;
+
+        if (nx < 0 || ny < 0 || nx >= 19 || ny >= 19) break;
+        if (board[ny][nx] === player) count++;
+        else break;
+    }
+
+    for (let i = 1; i < 5; i++) {
+        let nx = x - dx * i;
+        let ny = y - dy * i;
+
+        if (nx < 0 || ny < 0 || nx >= 19 || ny >= 19) break;
+        if (board[ny][nx] === player) count++;
+        else break;
+    }
+
+    return count >= 5;
+}
+
+function localCheckWin(x, y, player) {
+    return checkDirection(1, 0, x, y, player) ||  // Horizontal
+           checkDirection(0, 1, x, y, player) ||  // Vertical
+           checkDirection(1, 1, x, y, player) ||  // Diagonal from top-left to bottom-right
+           checkDirection(1, -1, x, y, player);   // Diagonal from bottom-left to top-right
+}
