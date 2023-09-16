@@ -7,61 +7,79 @@ const server = http.createServer(app);
 const io = socketIo(server);
 
 let board = Array(19).fill().map(() => Array(19).fill(null));
+const gridSize = 19;
 let currentPlayer = 'black'; // Start with the black player
-let players = [];
 let playerRoles = new Map(); 
-
 app.use(express.static('public')); // Assuming your client-side files are in a 'public' directory
 
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
+    console.log(playerRoles);  
+    console.log('------------------')
 
-    let reconnectedPlayer = false;
-
-    socket.on('checkRole', (id) => {
+    socket.on('getOldPlayer', (id, callback) => {
         if (playerRoles.has(id)) {
-            reconnectedPlayer = true;
+            console.log('reconnected player', id);
             let role = playerRoles.get(id);
-            socket.emit('setRole', role);
+            callback({
+                socketId: socket.id, role: role
+            });
+        }else {
+            callback({ error: 'Player not found' });
         }
     });
 
-    // Assign roles to players
-    if (players.length < 2) {
-        let role = players.length === 0 ? 'black' : 'white';
-        players.push({ id: socket.id, role: role });
-        socket.emit('role', role);  // Inform the player of their role
-    } else {
-        socket.emit('role', 'observer');  // Inform that they are just an observer
-    } 
+    socket.on('createNewPlayer', (callback) => {
+        console.log('create new player....')
+        // Assign roles to players
+        let role = null;
+        console.log(playerRoles.size);
 
-    socket.emit('board', board); // Send the current board state to the newly connected player
+        if (playerRoles.size < 2) {
+            role = playerRoles.size === 0 ? 'black' : 'white';
+            playerRoles.set(socket.id, role);
+        } else {
+            role = 'observer';
+        } 
+        playerRoles.set(socket.id, role);
+        console.log(playerRoles);        
+        callback({
+            socketId: socket.id, role: role
+        });
+    });
+
+    io.emit('board', board);
+    io.emit('currentPlayer', currentPlayer);
+    
+
+    socket.on('resetGame', () => {
+        resetGame();
+        io.emit('gameReset');
+        console.log("game is reset!");
+    })
 
     socket.on('move', (data) => {
-        console.log('players', players);
-        let player = players.find(p => p.id === socket.id);
-        console.log('player.role', player.role);
+        console.log(data);
+        let playerRole = data.player;
+        console.log('playerRole', playerRole);
         console.log('currentPlayer', currentPlayer);
-        if (player && player.role === currentPlayer && !board[data.y][data.x]) {
+        if (playerRole && playerRole === currentPlayer && !board[data.y][data.x] && 
+            data.x >= 0 && data.x < gridSize && data.y >= 0 && data.y < gridSize && 
+            playerRoles.size >=2) {
             board[data.y][data.x] = currentPlayer;
             currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
             io.emit('move', data); // Send the move to all connected clients
             console.log('Broadcasted move to all clients', data);
-
-            if (checkWin(data.x, data.y, player.role)) { // Assuming you implement a server-side checkWin function
-                io.emit('gameWon', player.role); // Inform all clients about the win
-                setTimeout(() => {
-                    resetGame(); // Assuming you implement a server-side reset function
-                    io.emit('gameReset'); // Inform all clients that the game has been reset
-                }, 10000); // 10 seconds
+            if (checkWin(data.x, data.y, playerRole)) { // Assuming you implement a server-side checkWin function
+                io.emit('gameWon', playerRole); // Inform all clients about the win
+                console.log("gamewon", playerRole);
+                resetGame();
             } 
         }  
     });
 
     socket.on('disconnect', () => {
         console.log('A user disconnected:', socket.id);
-        players = players.filter(p => p.id !== socket.id);
-        // If a player disconnects, you might want to handle reassignment or end the game
     });
 });
 

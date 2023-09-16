@@ -8,6 +8,7 @@
 </head>
 <body>
     <div id="gameContainer">
+        <header id="gameModeHeader">Mode: Online </header>
         <canvas id="board" width="760" height="760"></canvas>
         <div id="gameControls">
             <div id="currentPlayerDisplay">
@@ -21,6 +22,8 @@
             </div>
 
             <button id="resetButton">Reset Game</button>
+            <button id="playOnline">Play Online</button>
+            <button id="playLocally">Play Locally</button>
         </div>
     </div>
     <script src="/socket.io/socket.io.js"></script>

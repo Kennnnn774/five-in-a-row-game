@@ -65,3 +65,34 @@ canvas {
     background-color: #45a049; /* Darker green on hover */
 }
 
+#playOnline{
+    background-color: #664caf; /* Green background */
+    color: white; /* White text */
+    padding: 12px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: 0.3s; /* smooth transition for hover effect */
+}
+#playLocally{
+    background-color: #af604c; /* Green background */
+    color: white; /* White text */
+    padding: 12px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: 0.3s; /* smooth transition for hover effect */
+}
+
+#gameModeHeader {
+    font-size: 24px;
+    color: #333;
+    margin-bottom: 20px;
+    padding: 10px 20px;
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+

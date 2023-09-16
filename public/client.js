@@ -5,44 +5,75 @@ const gridSize = 19;
 let board = Array(gridSize).fill().map(() => Array(gridSize).fill(null));
 let currentPlayer = 'black';
 let myRole = null;
+let playerId = null;
+let tabId = null;
+let onlineMode = true; // By default, the game is in online mode
 
-const socket = io.connect('http://localhost:3000');
+const playOnlineButton = document.getElementById('playOnline');
+const playLocallyButton = document.getElementById('playLocally');
+const gameModeHeader = document.getElementById('gameModeHeader');
 
-canvas.addEventListener('mousedown', function(e) {
-    if (myRole !== currentPlayer) return; // Ensure the player can only move on their turn
+const socket = io.connect('http://localhost:3000'); // Replace with your server URL
 
-    let x = Math.round((e.offsetX - cellSize / 2) / cellSize);
-    let y = Math.round((e.offsetY - cellSize / 2) / cellSize);
-
-    if (x >= 0 && x < gridSize && y >= 0 && y < gridSize && !board[y][x]) {
-        board[y][x] = currentPlayer;
-        drawBoard();
-    
-        socket.emit('move', { x: x, y: y, player: currentPlayer });
-
-        currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
-        updatePlayerDisplay();  
-    }
+playOnlineButton.addEventListener('click', function() {
+    onlineMode = true;
+    resetGame();
+    socket.connect();
+    updateGameModeHeader();
 });
 
-const resetButton = document.getElementById('resetButton');
-resetButton.addEventListener('click', resetGame);
+playLocallyButton.addEventListener('click', function() {
+    onlineMode = false;
+    resetGame();
+    socket.emit('resetGame');
+    disconnectFromServer(); // This function will be defined below
+    updateGameModeHeader();
+});
 
-let playerId = localStorage.getItem('playerId');
-if (playerId) {
-    socket.emit('checkRole', playerId);
+function updateGameModeHeader() {
+    if (onlineMode === true) {
+        gameModeHeader.innerText = "Mode: Online";
+    } else if (onlineMode === false) {
+        gameModeHeader.innerText = "Mode: Local";
+    } 
 }
 
-socket.on('setRole', (role) => {
-    // Set the role for this client and store their ID if not already stored
-    currentPlayer = role;
-    if (!playerId) {
-        playerId = socket.id;
-        localStorage.setItem('playerId', playerId);
-    }
+function disconnectFromServer() {
+    if (socket) {
+        socket.disconnect(); // This disconnects the socket from the server
+    } 
+}
+
+playerId = sessionStorage.getItem('playerId');
+console.log('session saved', playerId);
+if(onlineMode){
+    if (playerId) {
+        console.log('client exist', playerId);
+        socket.emit('getOldPlayer', playerId, (response) => {
+            playerId = response.socketId;
+            myRole = response.role;
+            updateRoleDisplay(myRole);        
+        });
+    } else {
+        socket.emit('createNewPlayer', (response) => {
+            // Callback function to handle the new player ID
+            sessionStorage.setItem('playerId', response.socketId);
+            playerId = sessionStorage.getItem('playerId');
+            myRole = response.role;
+            updateRoleDisplay(myRole);
+            console.log('session saved check', playerId);
+        });    
+    }   
+}
+
+socket.on('board', (data) =>{
+    board = data;
+    drawBoard();
+});
+socket.on('currentPlayer', (data) =>{
+    currentPlayer = data;
     updatePlayerDisplay();
 });
-
 // When receiving a move from the server:
 socket.on('move', function(data) {
     board[data.y][data.x] = data.player;
@@ -51,39 +82,51 @@ socket.on('move', function(data) {
     updatePlayerDisplay();
 });
 
-socket.on('player_status', function(data) {
-    if (data.status === 'watch') {
-        // For the sake of simplicity, we'll just display an alert
-        alert("You're watching the game. Wait for your turn to play.");
-    } else if (data.status === 'play') {
-        currentPlayer = data.color;
+socket.on('gameWon', (role) => {
+    alert(`${role} wins the game!`);
+    resetGame(); // Reset the game
+
+});
+
+socket.on('gameReset', () => {
+    alert(`game is reset!`);
+    resetGame(); // Reset the game
+});
+
+canvas.addEventListener('mousedown', function (e) {
+    let x = Math.round((e.offsetX - cellSize / 2) / cellSize);
+    let y = Math.round((e.offsetY - cellSize / 2) / cellSize);
+
+    if (x >= 0 && x < gridSize && y >= 0 && y < gridSize && !board[y][x]) {
+        if (onlineMode){
+            if (myRole && myRole !== currentPlayer) return;
+            board[y][x] = currentPlayer;
+            socket.emit('move', { x: x, y: y, player: currentPlayer });
+        } else {
+            board[y][x] = currentPlayer;
+            if (localCheckWin(x, y, currentPlayer)){
+                alert(`${currentPlayer} wins the game!`);
+                resetGame();
+                return;
+            }
+        }
+
+        drawBoard();
+        currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
         updatePlayerDisplay();
     }
+
 });
 
-socket.on('update_turn', function(newPlayer) {
-    currentPlayer = newPlayer;
-    updatePlayerDisplay();
+const resetButton = document.getElementById('resetButton');
+resetButton.addEventListener('click', function (e) {
+    resetGame();
+    if (onlineMode) socket.emit('resetGame');
 });
-
-socket.on('role', function(role) {
-    myRole = role;
-    const roleElement = document.getElementById('roleStone');
-
-    // Update the role display based on the role assigned by the server
-    if (role === 'observer') {
-        roleElement.textContent = "Observer";
-        roleElement.style.backgroundColor = 'transparent';
-    } else {
-        roleElement.textContent = "";
-        roleElement.style.backgroundColor = role;
-    }
-});
-
 
 function drawBoard() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
     // Drawing the grid
     for (let i = 0; i <= gridSize; i++) {
         ctx.beginPath();
@@ -118,22 +161,71 @@ function updatePlayerDisplay() {
     currentStoneEl.style.backgroundColor = currentPlayer;
 }
 
-function resetGame() {
-    board = Array(19).fill().map(() => Array(19).fill(null));
-    currentPlayer = 'black';
-    drawBoard();
-    updatePlayerDisplay(); 
+function updateRoleDisplay(role){
+    const roleElement = document.getElementById('roleStone');
+    // Update the role display based on the role assigned by the server
+    if (role === 'observer') {
+        roleElement.textContent = "Observer";
+        roleElement.style.backgroundColor = 'transparent';
+    } else {
+        roleElement.textContent = "";
+        roleElement.style.backgroundColor = role;
+    }
 }
 
+
 function resetGame() {
-    board = Array(19).fill().map(() => Array(19).fill(null));
+    board = Array(gridSize).fill().map(() => Array(gridSize).fill(null));
+    currentPlayer = 'black';
     drawBoard();
+    updatePlayerDisplay();
+}
+
+function setCookie(name, value, days) {
+    let expires = "";
+    if (days) {
+        const date = new Date();
+        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+        expires = "; expires=" + date.toUTCString();
+    }
+    document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 drawBoard();
 updatePlayerDisplay();
 
 
+function checkDirection(dx, dy, x, y, player) {
+    let count = 0;
 
+    for (let i = 0; i < 5; i++) {
+        let nx = x + dx * i;
+        let ny = y + dy * i;
 
+        if (nx < 0 || ny < 0 || nx >= 19 || ny >= 19) break;
+        if (board[ny][nx] === player) count++;
+        else break;
+    }
 
+    for (let i = 1; i < 5; i++) {
+        let nx = x - dx * i;
+        let ny = y - dy * i;
+
+        if (nx < 0 || ny < 0 || nx >= 19 || ny >= 19) break;
+        if (board[ny][nx] === player) count++;
+        else break;
+    }
+
+    return count >= 5;
+}
+
+function localCheckWin(x, y, player) {
+    return checkDirection(1, 0, x, y, player) ||  // Horizontal
+           checkDirection(0, 1, x, y, player) ||  // Vertical
+           checkDirection(1, 1, x, y, player) ||  // Diagonal from top-left to bottom-right
+           checkDirection(1, -1, x, y, player);   // Diagonal from bottom-left to top-right
+}
