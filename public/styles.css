@@ -5,7 +5,7 @@ body {
     align-items: center;
     height: 100vh;
     background-color: #f2f2f2;
-    overflow: hidden; /* To avoid any unintended scrolling */
+    overflow: hidden; 
     margin: 20;
 }
 
@@ -20,11 +20,11 @@ canvas {
 }
 
 #board {
-    border: 1px solid #000;  /* Optional: Add border for visual clarity */
+    border: 1px solid #000;  
 }
 
 #gameControls {
-    margin-left: 20px; /* spacing between board and controls */
+    margin-left: 20px; 
     display: flex;
     flex-direction: column;
     align-items: start;
@@ -52,36 +52,36 @@ canvas {
 }
 
 #resetButton {
-    background-color: #4CAF50; /* Green background */
-    color: white; /* White text */
+    background-color: #4CAF50; 
+    color: white; 
     padding: 12px 20px;
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    transition: 0.3s; /* smooth transition for hover effect */
+    transition: 0.3s; 
 }
 
 #resetButton:hover {
-    background-color: #45a049; /* Darker green on hover */
+    background-color: #45a049;
 }
 
 #playOnline{
-    background-color: #664caf; /* Green background */
-    color: white; /* White text */
+    background-color: #664caf;
+    color: white; 
     padding: 12px 20px;
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    transition: 0.3s; /* smooth transition for hover effect */
+    transition: 0.3s; 
 }
 #playLocally{
-    background-color: #af604c; /* Green background */
-    color: white; /* White text */
+    background-color: #af604c; 
+    color: white; 
     padding: 12px 20px;
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    transition: 0.3s; /* smooth transition for hover effect */
+    transition: 0.3s; 
 }
 
 #gameModeHeader {
@@ -97,12 +97,12 @@ canvas {
 }
 
 #playAI{
-    background-color: #63d62d; /* Green background */
-    color: white; /* White text */
+    background-color: #63d62d; 
+    color: white; 
     padding: 12px 20px;
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    transition: 0.3s; /* smooth transition for hover effect */
+    transition: 0.3s;
 }
 
