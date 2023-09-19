@@ -13,12 +13,13 @@ const playOnlineButton = document.getElementById('playOnline');
 const playLocallyButton = document.getElementById('playLocally');
 const gameModeHeader = document.getElementById('gameModeHeader');
 
-const socket = io.connect('http://localhost:3000'); // Replace with your server URL
+const socket = io.connect('http://localhost:3000'); 
 
 playOnlineButton.addEventListener('click', function() {
     onlineMode = true;
     resetGame();
     socket.connect();
+    socket.emit("onlinemode");
     updateGameModeHeader();
 });
 
@@ -26,8 +27,17 @@ playLocallyButton.addEventListener('click', function() {
     onlineMode = false;
     resetGame();
     socket.emit('resetGame');
-    disconnectFromServer(); // This function will be defined below
+    disconnectFromServer(); 
     updateGameModeHeader();
+});
+
+const playAIButton = document.getElementById('playAI');
+playAIButton.addEventListener('click', function() {
+    onlineMode = true;  
+    resetGame();
+    socket.connect();
+    socket.emit('playAgainstAI');  
+    gameModeHeader.innerText = "Mode: play AI";
 });
 
 function updateGameModeHeader() {
@@ -40,7 +50,7 @@ function updateGameModeHeader() {
 
 function disconnectFromServer() {
     if (socket) {
-        socket.disconnect(); // This disconnects the socket from the server
+        socket.disconnect(); 
     } 
 }
 
@@ -56,7 +66,6 @@ if(onlineMode){
         });
     } else {
         socket.emit('createNewPlayer', (response) => {
-            // Callback function to handle the new player ID
             sessionStorage.setItem('playerId', response.socketId);
             playerId = sessionStorage.getItem('playerId');
             myRole = response.role;
@@ -74,23 +83,28 @@ socket.on('currentPlayer', (data) =>{
     currentPlayer = data;
     updatePlayerDisplay();
 });
-// When receiving a move from the server:
+
 socket.on('move', function(data) {
     board[data.y][data.x] = data.player;
     drawBoard();
-    currentPlayer = data.player === 'black' ? 'white' : 'black';  // Swap the currentPlayer
+    currentPlayer = data.player === 'black' ? 'white' : 'black';  
     updatePlayerDisplay();
 });
 
 socket.on('gameWon', (role) => {
     alert(`${role} wins the game!`);
-    resetGame(); // Reset the game
+    resetGame(); 
 
+});
+
+socket.on('waitingForPlayers', (message) => {
+    resetGame();
+    alert(message);
 });
 
 socket.on('gameReset', () => {
     alert(`game is reset!`);
-    resetGame(); // Reset the game
+    resetGame(); 
 });
 
 canvas.addEventListener('mousedown', function (e) {
@@ -105,8 +119,11 @@ canvas.addEventListener('mousedown', function (e) {
         } else {
             board[y][x] = currentPlayer;
             if (localCheckWin(x, y, currentPlayer)){
-                alert(`${currentPlayer} wins the game!`);
-                resetGame();
+                drawBoard();
+                setTimeout(function(){
+                    alert(`${currentPlayer} wins the game!`);
+                    resetGame();
+                }, 10);
                 return;
             }
         }
@@ -127,7 +144,6 @@ resetButton.addEventListener('click', function (e) {
 function drawBoard() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Drawing the grid
     for (let i = 0; i <= gridSize; i++) {
         ctx.beginPath();
         ctx.moveTo(cellSize / 2 + i * cellSize, cellSize / 2);
@@ -138,7 +154,6 @@ function drawBoard() {
         ctx.stroke();
     }
 
-    // Drawing the pieces on intersections
     for (let y = 0; y < gridSize; y++) {
         for (let x = 0; x < gridSize; x++) {
             if (board[y][x]) {
@@ -163,7 +178,6 @@ function updatePlayerDisplay() {
 
 function updateRoleDisplay(role){
     const roleElement = document.getElementById('roleStone');
-    // Update the role display based on the role assigned by the server
     if (role === 'observer') {
         roleElement.textContent = "Observer";
         roleElement.style.backgroundColor = 'transparent';

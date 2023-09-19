@@ -96,3 +96,13 @@ canvas {
     text-align: center;
 }
 
+#playAI{
+    background-color: #63d62d; /* Green background */
+    color: white; /* White text */
+    padding: 12px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: 0.3s; /* smooth transition for hover effect */
+}
+

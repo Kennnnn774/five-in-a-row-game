@@ -10,12 +10,24 @@ let board = Array(19).fill().map(() => Array(19).fill(null));
 const gridSize = 19;
 let currentPlayer = 'black'; // Start with the black player
 let playerRoles = new Map(); 
-app.use(express.static('public')); // Assuming your client-side files are in a 'public' directory
+app.use(express.static('public')); 
+
+let aiMode = false;
 
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
     console.log(playerRoles);  
     console.log('------------------')
+
+    socket.on('playAgainstAI', () => {
+        aiMode = true;
+        resetGame();
+    });
+
+    socket.on('onlinemode', () => {
+        aiMode = false;
+        resetGame();
+    });
 
     socket.on('getOldPlayer', (id, callback) => {
         if (playerRoles.has(id)) {
@@ -30,8 +42,6 @@ io.on('connection', (socket) => {
     });
 
     socket.on('createNewPlayer', (callback) => {
-        console.log('create new player....')
-        // Assign roles to players
         let role = null;
         console.log(playerRoles.size);
 
@@ -41,8 +51,7 @@ io.on('connection', (socket) => {
         } else {
             role = 'observer';
         } 
-        playerRoles.set(socket.id, role);
-        console.log(playerRoles);        
+        playerRoles.set(socket.id, role);       
         callback({
             socketId: socket.id, role: role
         });
@@ -59,23 +68,38 @@ io.on('connection', (socket) => {
     })
 
     socket.on('move', (data) => {
-        console.log(data);
         let playerRole = data.player;
-        console.log('playerRole', playerRole);
-        console.log('currentPlayer', currentPlayer);
-        if (playerRole && playerRole === currentPlayer && !board[data.y][data.x] && 
-            data.x >= 0 && data.x < gridSize && data.y >= 0 && data.y < gridSize && 
-            playerRoles.size >=2) {
-            board[data.y][data.x] = currentPlayer;
+        if (aiMode &&!board[data.y][data.x] && 
+            data.x >= 0 && data.x < gridSize && data.y >= 0 && data.y < gridSize) {
+            board[data.y][data.x] = playerRole;
             currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
-            io.emit('move', data); // Send the move to all connected clients
-            console.log('Broadcasted move to all clients', data);
-            if (checkWin(data.x, data.y, playerRole)) { // Assuming you implement a server-side checkWin function
-                io.emit('gameWon', playerRole); // Inform all clients about the win
+            io.emit('move', data);
+            aiMove(); // Make the AI move
+            if (checkWin(data.x, data.y, playerRole)) { 
+                io.emit('gameWon', playerRole); 
                 console.log("gamewon", playerRole);
                 resetGame();
             } 
-        }  
+        }
+        if (!aiMode){
+            if (playerRoles.size < 2) {
+                socket.emit('waitingForPlayers', 'Waiting for another player to join...');
+                resetGame();
+                return;  // Exit early if not enough players
+            }else{
+                if (playerRole && playerRole === currentPlayer && !board[data.y][data.x] && 
+                    data.x >= 0 && data.x < gridSize && data.y >= 0 && data.y < gridSize) {
+                    board[data.y][data.x] = currentPlayer;
+                    currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
+                    io.emit('move', data); 
+                    if (checkWin(data.x, data.y, playerRole)) { 
+                        io.emit('gameWon', playerRole); 
+                        console.log("gamewon", playerRole);
+                        resetGame();
+                    } 
+                }
+            }
+        }
     });
 
     socket.on('disconnect', () => {
@@ -112,14 +136,101 @@ function checkDirection(dx, dy, x, y, player) {
 }
 
 function checkWin(x, y, player) {
-    return checkDirection(1, 0, x, y, player) ||  // Horizontal
-           checkDirection(0, 1, x, y, player) ||  // Vertical
-           checkDirection(1, 1, x, y, player) ||  // Diagonal from top-left to bottom-right
-           checkDirection(1, -1, x, y, player);   // Diagonal from bottom-left to top-right
+    return checkDirection(1, 0, x, y, player) ||  
+           checkDirection(0, 1, x, y, player) ||  
+           checkDirection(1, 1, x, y, player) ||  
+           checkDirection(1, -1, x, y, player);   
 }
 
 function resetGame() {
     board = Array(19).fill().map(() => Array(19).fill(null));
     currentPlayer = 'black'
 }
+
+function aiMove() {
+    // try to block the black stone
+    for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+            if (!board[y][x] && wouldFormNConsecutive(x, y, 'black', 4)) {
+                board[y][x] = 'white';
+                io.emit('move', { x: x, y: y, player: 'white' });
+                if (checkWin(x, y, 'white')) { 
+                    setTimeout(function(){
+                        io.emit('gameWon', 'white'); 
+                    }, 10);
+                    resetGame();
+                } 
+                return;
+            }
+        }
+    }
+
+    // If not blocking, try to form five-in-a-row
+    for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+            if (!board[y][x] && wouldFormNConsecutive(x, y, 'white', 2)) {
+                board[y][x] = 'white';
+                io.emit('move', { x: x, y: y, player: 'white' });
+                if (checkWin(x, y, 'white')) { 
+                    setTimeout(function(){
+                        io.emit('gameWon', 'white'); 
+                    }, 10);
+                    resetGame();
+                } 
+                return;
+            }
+        }
+    }
+
+    // If none of the above, just place a stone randomly
+    while (true) {
+        let x = Math.floor(Math.random() * gridSize);
+        let y = Math.floor(Math.random() * gridSize);
+        if (!board[y][x]) {
+            board[y][x] = 'white';
+            io.emit('move', { x: x, y: y, player: 'white' });
+            if (checkWin(x, y, 'white')) { 
+                setTimeout(function(){
+                    io.emit('gameWon', 'white'); 
+                }, 10);
+                resetGame();
+            } 
+            return;
+        }
+    }
+}
+
+function wouldFormNConsecutive(x, y, player, n) {
+    const tempBoard = JSON.parse(JSON.stringify(board));
+    tempBoard[y][x] = player;
+    return checkNInARowWithBoard(tempBoard, x, y, player, n);
+}
+
+function checkNInARowWithBoard(board, x, y, player, n) {
+    return checkDirectionCount(1, 0, x, y, player, board) >= n || 
+           checkDirectionCount(0, 1, x, y, player, board) >= n || 
+           checkDirectionCount(1, 1, x, y, player, board) >= n || 
+           checkDirectionCount(1, -1, x, y, player, board) >= n;
+}
+
+function checkDirectionCount(dx, dy, x, y, player, board) {
+    let count = 1; 
+    count += countDirection(dx, dy, x, y, player, board);
+    count += countDirection(-dx, -dy, x, y, player, board);
+    return count;
+}
+
+function countDirection(dx, dy, x, y, player, board) {
+    let count = 0;
+    x += dx;
+    y += dy;
+    while (x >= 0 && x < board.length && y >= 0 && y < board[0].length && board[y][x] === player) {
+        count++;
+        x += dx;
+        y += dy;
+    }
+    return count;
+}
+
+
 
