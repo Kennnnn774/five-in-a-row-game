@@ -92,9 +92,10 @@ io.on('connection', (socket) => {
                     board[data.y][data.x] = currentPlayer;
                     currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
                     io.emit('move', data); 
-                    if (checkWin(data.x, data.y, playerRole)) { 
-                        io.emit('gameWon', playerRole); 
-                        console.log("gamewon", playerRole);
+                    if (checkWin(data.x, data.y, playerRole)) {  
+                        setTimeout(function(){
+                            io.emit('gameWon', playerRole); 
+                            }, 10);
                         resetGame();
                     } 
                 }
